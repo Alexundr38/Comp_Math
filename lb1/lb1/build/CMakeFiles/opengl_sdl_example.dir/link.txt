@@ -1,1 +1,0 @@
-/usr/bin/g++ -g CMakeFiles/opengl_sdl_example.dir/main.cpp.o -o opengl_sdl_example  /usr/lib/x86_64-linux-gnu/libSDL2.so /usr/lib/x86_64-linux-gnu/libGL.so /usr/lib/x86_64-linux-gnu/libGLU.so -lGLU 

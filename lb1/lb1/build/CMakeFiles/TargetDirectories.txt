@@ -1,3 +1,0 @@
-/home/sun/Документы/VblchMat/lb1/build/CMakeFiles/opengl_sdl_example.dir
-/home/sun/Документы/VblchMat/lb1/build/CMakeFiles/edit_cache.dir
-/home/sun/Документы/VblchMat/lb1/build/CMakeFiles/rebuild_cache.dir
