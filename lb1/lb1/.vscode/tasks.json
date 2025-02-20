@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "g++",
+            "args": [
+                "-o",
+                "opengl_sdl_example",
+                "main.cpp",
+                "-lSDL2",
+                "-lGL",
+                "-lGLU",
+                "-lSDL2_ttf"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+            "detail": "Сборка проекта с SDL2 и OpenGL"
+        }
+    ]
+}

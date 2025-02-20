@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/home/sun/Документы/VblchMat/lb1/build",
+  "command": "/usr/bin/g++  -isystem /usr/include/SDL2 -g -std=gnu++11 -o CMakeFiles/opengl_sdl_example.dir/main.cpp.o -c /home/sun/Документы/VblchMat/lb1/main.cpp",
+  "file": "/home/sun/Документы/VblchMat/lb1/main.cpp",
+  "output": "CMakeFiles/opengl_sdl_example.dir/main.cpp.o"
+}
+]
