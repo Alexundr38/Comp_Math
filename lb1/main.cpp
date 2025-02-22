@@ -4,7 +4,6 @@
 #include <cmath>
 #include <algorithm> 
 #include <vector>
-#include <GL/gl.h>
 #include <SDL2/SDL_ttf.h>
 #include <string>
 #include <iomanip>
@@ -62,21 +61,41 @@ public:
 	Vector operator-(double value) const{
 		return Vector(x - value, y - value, z - value);
 	}
+
+	bool operator!=(const Vector& vec){
+		if (x != vec.x || y != vec.y || z != vec.z) return true;
+		return false;
+	}
 };
+
+enum Method{Euler, MiddlePoint, RK_4, Trapezoid, PredictorCorrector};
+
+string methodToStr(Method method){
+	switch (method){
+		case Euler: return "Euler";
+		case MiddlePoint: return "MiddlePoint";
+		case RK_4: return "RK4";
+		case Trapezoid: return "Trapezoid";
+		case PredictorCorrector: return "PredictorCorrector";
+	}
+	return 0;
+}
 
 class Attractor{
 public:
 	int count_point;
 	double b;
 	vector <Vector> coordinates;
-	double h = 0.6;
-	//double h = 0.5 // 0.9 // 0.6;
+	double h;
 	enum Orient {X, Y, Z};
+	double lim = 0.001;
 
 	struct Rotate{
 		Orient orient;
 		int angle;
 	};
+
+	Method current_method = PredictorCorrector;
 
 	vector <Rotate> rotates;
 
@@ -88,11 +107,11 @@ public:
     SDL_Renderer* renderer;
 	TTF_Font* font;
 
-	Attractor (int count_point, double b): count_point(count_point), b(b) {
-		setСoordinates();
+	Attractor (int count_point, double b, double h): count_point(count_point), b(b), h(h) {
+		setCoordinates(&Attractor::predictorCorrectorMethod);
 
 		SDL_Init(SDL_INIT_VIDEO);
-        window = SDL_CreateWindow("Attractor",
+        window = SDL_CreateWindow("Thomas Attractor",
             SDL_WINDOWPOS_UNDEFINED,
             SDL_WINDOWPOS_UNDEFINED,
             width, height,
@@ -107,8 +126,11 @@ public:
 			std::cerr << "TTF_Init failed: " << TTF_GetError() << std::endl;
 			return;
 		}
-		
-		font = TTF_OpenFont("/home/sun/Документы/VblchMat/Roboto/Roboto-VariableFont_wdth,wght.ttf", 24); // 24 — размер шрифта
+		font = TTF_OpenFont("../Roboto-VariableFont_wdth,wght.ttf", 24);
+		if (font == nullptr) {
+			std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
+			return;
+		}
 	};
 
 	Vector d_dt(Vector point){
@@ -127,20 +149,94 @@ public:
 		return center;
 	}
 
-	void setСoordinates(){
+	void setCoordinates(Vector (Attractor::*func)(Vector)){	
 		coordinates.clear();
 		coordinates.push_back(Vector(0.1, 0.2, 0.2));
 		for (int i = 0; i < count_point; i++){
 			if (i%10 == 0){
-				coordinates.push_back(RK4(coordinates.back()));
+				coordinates.push_back((this->*func)(coordinates.back()));
 			}
-		}
-		for (int i = 0; i < 100; i++){
-			cout << coordinates[i].x << ' ' << coordinates[i].y << ' ' << coordinates[i].z << '\n';
 		}
 	}
 
-	Vector eulerMethod(Vector point){
+	void jacobian(double (&J)[3][3], Vector point){
+		J[0][0] = 1 + (h*b/2);
+		J[0][1] = -((h/2) * cos(point.y));
+		J[0][2] = 0;
+		J[1][0] = 0;
+		J[1][1] = 1 + (h*b/2);
+		J[1][2] = - ((h/2) * cos(point.z));
+		J[2][0] = - ((h/2) * cos(point.x));
+		J[2][1] = 0;
+		J[2][2] = 1 + (h*b/2);
+	}
+
+	double determinate(double (&J)[3][3]) const{
+		double det = J[0][0]*J[1][1]*J[2][2] + J[0][1]*J[1][2]*J[2][0] +
+							 J[0][2]*J[1][0]*J[2][1] - J[0][2]*J[1][1]*J[2][0] -
+							 J[0][1]*J[1][0]*J[2][2] - J[0][0]*J[1][2]*J[2][1];
+		return det;
+	}
+
+	void inversionJacobian(double (&J)[3][3], double (&J_inv)[3][3]){
+		double det = determinate(J);
+		J_inv[0][0] = (J[1][1]*J[2][2] - J[1][2]*J[2][1]) / det;
+		J_inv[0][1] = - ((J[1][0]*J[2][2] - J[2][0]*J[1][2]) / det);
+		J_inv[0][1] = (J[1][0]*J[2][1] - J[2][0]*J[1][1]) / det;
+		J_inv[1][0] = - ((J[0][1]*J[2][2] - J[2][1]*J[0][2]) / det);
+		J_inv[1][1] = (J[0][0]*J[2][2] - J[0][2]*J[2][0]) / det;
+		J_inv[1][2] = - ((J[0][0]*J[2][1] - J[0][1]*J[2][0]) / det);
+		J_inv[2][0] = (J[0][1]*J[1][2] - J[0][2]*J[1][1]) / det;
+		J_inv[2][1] = - ((J[0][0]*J[1][2] - J[1][0]*J[0][2]) / det);
+		J_inv[2][2] = (J[0][0]*J[1][1] - J[0][1]*J[1][0]) / det;
+	}
+
+	//y(n+1) = y(n+1) - J^(-1)*F 
+	void NewtonMethod(double (&J_inv)[3][3], Vector &new_point, Vector F){
+		new_point.x = new_point.x - (J_inv[0][0]*F.x + J_inv[0][1]*F.y + J_inv[0][2]*F.z);
+		new_point.y = new_point.y - (J_inv[1][0]*F.x + J_inv[1][1]*F.y + J_inv[1][2]*F.z);
+		new_point.z = new_point.z - (J_inv[2][0]*F.x + J_inv[2][1]*F.y + J_inv[2][2]*F.z); 
+	}
+
+	Vector predictorCorrectorMethod(Vector point){
+		Vector predict_point = EulerMethod(point);
+		return doReverseTrapezoidMethod(point, predict_point);
+	}
+
+	Vector reverseTrapezoidMethod(Vector point){
+		return doReverseTrapezoidMethod(point);
+	}
+
+	Vector doReverseTrapezoidMethod(Vector point, Vector predict_point = {0,0,0}){
+		int max_iter = 100;
+
+		//new_point == y(n+1)
+		//point == y(n)
+		Vector new_point = point;
+		if (predict_point != point){
+			new_point = predict_point;
+		}
+
+		Vector k1 = d_dt(point);
+		for (int i = 0; i < max_iter; i++){
+			double J[3][3], J_inv[3][3];
+
+			Vector k2 = d_dt(new_point);
+			Vector F = new_point - point + ((k1 + k2) * (h/2));
+
+			jacobian(J, new_point);
+			inversionJacobian(J, J_inv);
+
+			NewtonMethod(J_inv, new_point, F);
+
+			if (fabs(F.x) < lim && fabs(F.y) < lim && fabs(F.z) < lim) {
+                break;
+            }
+		}
+		return new_point;
+	}
+
+	Vector EulerMethod(Vector point){
 		return point + d_dt(point) * h;
 	}
 
@@ -239,15 +335,25 @@ public:
 	}
 
 	void drawText(){
-		SDL_Color textColor = {255, 255, 255, 255}; // Белый цвет (R, G, B, A)
+		SDL_Color textColor = {255, 255, 255, 255};
 
 		stringstream ss;
+		ss << "Method: " << methodToStr(current_method);
+		textSurface = TTF_RenderText_Solid(font, ss.str().c_str(), textColor);
+		textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+
+		SDL_FreeSurface(textSurface);
+		SDL_Rect textRectM = {0, 0, textSurface->w, textSurface->h};
+		SDL_RenderCopy(renderer, textTexture, nullptr, &textRectM);
+
+		ss.str("");
+		ss.clear();
 		ss  << "b = " << std::fixed << std::setprecision(2) << b;
 		textSurface = TTF_RenderText_Solid(font, ss.str().c_str(), textColor);
 		textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
 
-		SDL_FreeSurface(textSurface); // Освобождаем поверхность, так как она больше не нужна
-		SDL_Rect textRectb = {0, 0, textSurface->w, textSurface->h}; // Позиция и размер текста
+		SDL_FreeSurface(textSurface);
+		SDL_Rect textRectb = {0, 30, textSurface->w, textSurface->h};
 		SDL_RenderCopy(renderer, textTexture, nullptr, &textRectb);
 
 		ss.str("");
@@ -256,8 +362,8 @@ public:
 		textSurface = TTF_RenderText_Solid(font, ss.str().c_str(), textColor);
 		textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
 
-		SDL_FreeSurface(textSurface); // Освобождаем поверхность, так как она больше не нужна
-		SDL_Rect textRecth = {0, 30, textSurface->w, textSurface->h}; // Позиция и размер текста
+		SDL_FreeSurface(textSurface);
+		SDL_Rect textRecth = {0, 60, textSurface->w, textSurface->h};
 		SDL_RenderCopy(renderer, textTexture, nullptr, &textRecth);
 	}
 
@@ -269,14 +375,31 @@ public:
 			SDL_SetRenderDrawColor(renderer, 150, 0, 205, 200);
 			drawPoint(1, coordinates[i].x, coordinates[i].y);
         }
-        //SDL_Delay(10);
 		drawText();
 		
         SDL_RenderPresent(renderer);
     }
 
 	void changeAttractor(int k){
-		setСoordinates();
+		switch(current_method){
+			case Euler:
+				setCoordinates(&Attractor::EulerMethod);
+				break;
+			case MiddlePoint:
+				setCoordinates(&Attractor::middlePointMethod);
+				break;
+			case RK_4:
+				setCoordinates(&Attractor::RK4);
+				break;
+			case Trapezoid:
+				setCoordinates(&Attractor::reverseTrapezoidMethod);
+				break;			
+			case PredictorCorrector:
+				setCoordinates(&Attractor::predictorCorrectorMethod);
+				break;
+			default:
+				break;
+		}
 		transformAttractor(k, true);
 		for (auto& rotate: rotates){
 			rotateAttractor(rotate);
@@ -295,53 +418,88 @@ public:
                 if (event.type == SDL_QUIT) running = false;
                 if (event.type == SDL_KEYDOWN) {
                     switch (event.key.keysym.sym) {
-                        case SDLK_UP:
+                        case SDLK_UP:		//rotate up
 							rotates.push_back(Rotate{X, current_rotate});
                             rotateAttractor(rotates.back());
                             drawVertices();
                             break;
-                        case SDLK_DOWN:
+                        case SDLK_DOWN:		//rotate down
                             rotates.push_back(Rotate{X, -current_rotate});
 							rotateAttractor(rotates.back());							
                             drawVertices();
                             break;
-                        case SDLK_LEFT:
+                        case SDLK_LEFT:		//rotate left
                             rotates.push_back(Rotate{Y, -current_rotate});
 							rotateAttractor(rotates.back());							
                             drawVertices();
                             break;
-                        case SDLK_RIGHT:
+                        case SDLK_RIGHT:	//rotate right
 							rotates.push_back(Rotate{Y, current_rotate});
                             rotateAttractor(rotates.back());
                             drawVertices();
                             break;
-                        case SDLK_PAGEUP:
+                        case SDLK_PAGEUP: 	//zoom
 							k += 5;
 							transformAttractor(k, false, k - 5);
 							drawVertices();
 							break;
-						case SDLK_PAGEDOWN:
+						case SDLK_PAGEDOWN: //move away
 							k -= 5;
 							transformAttractor(k, false, k + 5);
 							drawVertices();
 							break;
-						case SDLK_COMMA: // change h
+						case SDLK_COMMA: 	// change h
 							h -= 0.1;
 							changeAttractor(k);
 							drawVertices();
 							break;
-						case SDLK_PERIOD: // change h
+						case SDLK_PERIOD: 	// change h
 							h += 0.1;
 							changeAttractor(k);
 							drawVertices();
 							break;
-						case SDLK_RIGHTBRACKET:
+						case SDLK_RIGHTBRACKET:  //change b
 							b += 0.01;
 							changeAttractor(k);
 							drawVertices();
 							break;
-						case SDLK_LEFTBRACKET:
+						case SDLK_LEFTBRACKET: //change b
 							b -= 0.01;
+							changeAttractor(k);
+							drawVertices();
+							break;
+						case SDLK_e:	//change method to EulerMethod
+							b = 0.19;
+							h = 0.1;
+							current_method = Euler;
+							changeAttractor(k);
+							drawVertices();
+							break;
+						case SDLK_m:	//change method to MiddlePointMethod
+							b = 0.19;
+							h = 0.6;
+							current_method = MiddlePoint;
+							changeAttractor(k);
+							drawVertices();
+							break;
+						case SDLK_r:	//change method to RK4
+							b = 0.19;
+							h = 1.1;
+							current_method = RK_4;
+							changeAttractor(k);
+							drawVertices();
+							break;
+						case SDLK_t:	//change method to reverseTrapezoidMethod
+							b = 0.18;
+							h = -0.6;
+							current_method = Trapezoid;
+							changeAttractor(k);
+							drawVertices();
+							break;
+						case SDLK_p:	//change method to predictorCorrectorMethod
+							b = 0.18;
+							h = -0.8;
+							current_method = PredictorCorrector;
 							changeAttractor(k);
 							drawVertices();
 							break;
@@ -365,7 +523,6 @@ public:
 };
 
 int main(){
-	Attractor atr (3000000, 0.19);
-	//Attractor atr (3000000, 0.19). h = 0.6;
+	Attractor atr (3000000, 0.18, -0.8);
 	atr.drawAttractor();
 }
