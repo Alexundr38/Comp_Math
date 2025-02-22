@@ -10,6 +10,10 @@ sudo apt-get install build-essential libsdl2-dev libgl1-mesa-dev libglu1-mesa-de
 
 --------------------------------------------------------------------------------------------------
 
+Run thomas_attractor or use cmake
+
+--------------------------------------------------------------------------------------------------
+
 -- Cmake command:
 
 mkdir build
