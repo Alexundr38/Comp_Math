@@ -126,7 +126,7 @@ public:
 			std::cerr << "TTF_Init failed: " << TTF_GetError() << std::endl;
 			return;
 		}
-		font = TTF_OpenFont("../Roboto-VariableFont_wdth,wght.ttf", 24);
+		font = TTF_OpenFont("./Roboto-VariableFont_wdth,wght.ttf", 24);
 		if (font == nullptr) {
 			std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
 			return;
