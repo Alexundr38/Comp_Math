@@ -26,7 +26,7 @@ make
 
 --------------------------------------------------------------------------------------------------
 
--- If have troubles with sdl2_ttf.pc
+-- If have troubles with sdl2_ttf.pc (Ubuntu)
 
 1. Create file:
 
@@ -76,15 +76,17 @@ r - use RK4 method
 
 t - use Trapezoid method
 
-P - use PredictCorrector method
+p - use PredictCorrector method
 
-> - increase h
+
+'>' - increase h
 
 < - decrease h
 
 ] - increase b
 
 [ - decrease b
+
 
 up - rotate up
 
@@ -93,6 +95,7 @@ down - rotate down
 left - rotate left
 
 right - rotate right
+
 
 PgUp - zoom
 
