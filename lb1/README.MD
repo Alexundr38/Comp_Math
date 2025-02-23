@@ -76,7 +76,8 @@ r - use RK4 method
 
 t - use Trapezoid method
 
-p - use PredictCorrector method
+p - use PredictCorrector 
+
 
 
 '>' - increase h
@@ -88,6 +89,7 @@ p - use PredictCorrector method
 [ - decrease b
 
 
+
 up - rotate up
 
 down - rotate down
@@ -95,6 +97,7 @@ down - rotate down
 left - rotate left
 
 right - rotate right
+
 
 
 PgUp - zoom
