@@ -66,7 +66,7 @@ pkg-config --libs sdl2_ttf
 
 --------------------------------------------------------------------------------------------------
 
-Key assigments:
+-- Key assigments:
 
 e - use Euler method
 
