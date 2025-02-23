@@ -79,7 +79,6 @@ t - use Trapezoid method
 p - use PredictCorrector 
 
 
-
 '>' - increase h
 
 < - decrease h
@@ -89,7 +88,6 @@ p - use PredictCorrector
 [ - decrease b
 
 
-
 up - rotate up
 
 down - rotate down
@@ -97,7 +95,6 @@ down - rotate down
 left - rotate left
 
 right - rotate right
-
 
 
 PgUp - zoom
