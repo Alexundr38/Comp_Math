@@ -50,7 +50,8 @@ e - use Euler method
 m - use MiddlePoint method
 r - use RK4 method
 t - use Trapezoid method
-P - use PredictCorrector method
+p - use PredictCorrector method
+d - use DOPRI8 method
 
 > - increase h
 < - decrease h

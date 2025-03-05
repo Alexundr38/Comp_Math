@@ -8,6 +8,8 @@
 #include <string>
 #include <iomanip>
 #include <sstream>
+#include <limits>
+#include <fstream>
 using namespace std;
 
 class Vector{
@@ -68,7 +70,12 @@ public:
 	}
 };
 
-enum Method{Euler, MiddlePoint, RK_4, Trapezoid, PredictorCorrector};
+enum Method{Euler, MiddlePoint, RK_4, Trapezoid, PredictorCorrector, DOPRI_8};
+
+double euclideanDistance(Vector& first, Vector& second){
+	return sqrt( pow(first.x - second.x, 2) + pow(first.y - second.y, 2) + pow(first.z - second.z, 2) );
+}
+
 
 string methodToStr(Method method){
 	switch (method){
@@ -77,6 +84,7 @@ string methodToStr(Method method){
 		case RK_4: return "RK4";
 		case Trapezoid: return "Trapezoid";
 		case PredictorCorrector: return "PredictorCorrector";
+		case DOPRI_8: return "DOPRI8";
 	}
 	return 0;
 }
@@ -106,10 +114,12 @@ public:
 	SDL_Surface* textSurface;
     SDL_Renderer* renderer;
 	TTF_Font* font;
+	
+	double tol = 0.0001;
 
 	Attractor (int count_point, double b, double h): count_point(count_point), b(b), h(h) {
 		setCoordinates(&Attractor::predictorCorrectorMethod);
-
+        
 		SDL_Init(SDL_INIT_VIDEO);
         window = SDL_CreateWindow("Thomas Attractor",
             SDL_WINDOWPOS_UNDEFINED,
@@ -149,6 +159,31 @@ public:
 		return center;
 	}
 
+	void doSetCoordinates(){
+		switch(current_method){
+			case Euler:
+				setCoordinates(&Attractor::EulerMethod);
+				break;
+			case MiddlePoint:
+				setCoordinates(&Attractor::middlePointMethod);
+				break;
+			case RK_4:
+				setCoordinates(&Attractor::RK4);
+				break;
+			case Trapezoid:
+				setCoordinates(&Attractor::reverseTrapezoidMethod);
+				break;			
+			case PredictorCorrector:
+				setCoordinates(&Attractor::predictorCorrectorMethod);
+				break;
+			case DOPRI_8:
+				setCoordinates(&Attractor::DOPRI8);
+				break;
+			default:
+				break;
+		}
+	}
+
 	void setCoordinates(Vector (Attractor::*func)(Vector)){	
 		coordinates.clear();
 		coordinates.push_back(Vector(0.1, 0.2, 0.2));
@@ -173,8 +208,8 @@ public:
 
 	double determinate(double (&J)[3][3]) const{
 		double det = J[0][0]*J[1][1]*J[2][2] + J[0][1]*J[1][2]*J[2][0] +
-							 J[0][2]*J[1][0]*J[2][1] - J[0][2]*J[1][1]*J[2][0] -
-							 J[0][1]*J[1][0]*J[2][2] - J[0][0]*J[1][2]*J[2][1];
+					 J[0][2]*J[1][0]*J[2][1] - J[0][2]*J[1][1]*J[2][0] -
+					 J[0][1]*J[1][0]*J[2][2] - J[0][0]*J[1][2]*J[2][1];
 		return det;
 	}
 
@@ -182,7 +217,7 @@ public:
 		double det = determinate(J);
 		J_inv[0][0] = (J[1][1]*J[2][2] - J[1][2]*J[2][1]) / det;
 		J_inv[0][1] = - ((J[1][0]*J[2][2] - J[2][0]*J[1][2]) / det);
-		J_inv[0][1] = (J[1][0]*J[2][1] - J[2][0]*J[1][1]) / det;
+		J_inv[0][2] = (J[1][0]*J[2][1] - J[2][0]*J[1][1]) / det;
 		J_inv[1][0] = - ((J[0][1]*J[2][2] - J[2][1]*J[0][2]) / det);
 		J_inv[1][1] = (J[0][0]*J[2][2] - J[0][2]*J[2][0]) / det;
 		J_inv[1][2] = - ((J[0][0]*J[2][1] - J[0][1]*J[2][0]) / det);
@@ -252,6 +287,32 @@ public:
 		Vector k3 = d_dt(point + k2 * (h/2));
 		Vector k4 = d_dt(point + k3 * h);
 		return point + (k1/6 + k2/3 + k3/3 + k4/6) * h;
+	}
+
+	Vector DOPRI8(Vector point){
+		Vector k1 = d_dt(point);
+		Vector k2 = d_dt(point + k1*(h/5.0));
+		Vector k3 = d_dt(point + k1*(h*3.0/40.0) + k2*(h*9.0/40.0));
+		Vector k4 = d_dt(point + k1*(h*44.0/45.0) - k2*(h*56.0/15.0) + k3*(h*32.0/9.0));
+		Vector k5 = d_dt(point + k1*(h*19372.0/6561.0) - k2*(h*25360.0/2187.0) + k3*(h*64448.0/6561.0) - k4*(h*212.0/729.0));
+		Vector k6 = d_dt(point + k1*(h*9017.0/3168.0) - k2*(h*355.0/33.0) + k3*(h*46732.0/5247.0) + k4*(h*49.0/176.0) - k5*(h*5103.0/18656.0));
+		Vector k7 = d_dt(point + k1*(h*35.0/384.0) + k3*(h*500.0/1113.0) + k4*(h*125.0/192.0) - k5*(h*2187.0/6784.0) + k6*(h*11.0/84.0));
+		Vector add_point5 = point + k1*(h*35.0/384.0) + k3*(h*500.0/1113.0) + k4*(h*125.0/192.0) - k5*(h*2187.0/6784.0) + k6*(h*11.0/84.0);
+		Vector add_point4 = point + k1*(h*5179.0/57600.0) + k3*(h*7571.0/16695.0) + k4*(h*393.0/640.0) - k5*(h*92097.0/339200.0) + k6*(h*187.0/2100.0) + k7*(h/40.0);
+		
+		Vector error_vector = add_point5 - add_point4;
+
+		Vector null_vec = {0,0,0};
+		double error = euclideanDistance(error_vector, null_vec);
+
+		if (error < tol){
+			h *= pow(tol/error, 1.0/9.0);
+			return add_point5;
+		} else{
+			h *= pow (tol/error, 1.0/8.0);
+			return DOPRI8(point);
+		}
+
 	}
 
 	void drawPoint(size_t size, int x, int y){
@@ -380,7 +441,7 @@ public:
         SDL_RenderPresent(renderer);
     }
 
-	void changeAttractor(int k){
+	void changeAttractor(int k = 100){
 		switch(current_method){
 			case Euler:
 				setCoordinates(&Attractor::EulerMethod);
@@ -396,6 +457,9 @@ public:
 				break;			
 			case PredictorCorrector:
 				setCoordinates(&Attractor::predictorCorrectorMethod);
+				break;
+			case DOPRI_8:
+				setCoordinates(&Attractor::DOPRI8);
 				break;
 			default:
 				break;
@@ -449,12 +513,12 @@ public:
 							drawVertices();
 							break;
 						case SDLK_COMMA: 	// change h
-							h -= 0.1;
+							h -= 0.03;
 							changeAttractor(k);
 							drawVertices();
 							break;
 						case SDLK_PERIOD: 	// change h
-							h += 0.1;
+							h += 0.03;
 							changeAttractor(k);
 							drawVertices();
 							break;
@@ -472,6 +536,7 @@ public:
 							b = 0.19;
 							h = 0.1;
 							current_method = Euler;
+							count_point = 3000000;
 							changeAttractor(k);
 							drawVertices();
 							break;
@@ -479,6 +544,7 @@ public:
 							b = 0.19;
 							h = 0.6;
 							current_method = MiddlePoint;
+							count_point = 3000000;
 							changeAttractor(k);
 							drawVertices();
 							break;
@@ -486,23 +552,33 @@ public:
 							b = 0.19;
 							h = 1.1;
 							current_method = RK_4;
+							count_point = 3000000;
 							changeAttractor(k);
 							drawVertices();
 							break;
 						case SDLK_t:	//change method to reverseTrapezoidMethod
 							b = 0.18;
-							h = -0.6;
+							h = -0.55;
 							current_method = Trapezoid;
+							count_point = 3000000;
 							changeAttractor(k);
 							drawVertices();
 							break;
 						case SDLK_p:	//change method to predictorCorrectorMethod
 							b = 0.18;
-							h = -0.8;
+							h = -0.78;
 							current_method = PredictorCorrector;
+							count_point = 3000000;
 							changeAttractor(k);
 							drawVertices();
 							break;
+						case SDLK_d:	//change method to DOPRI8
+							b = 0.18;
+							h = 0.7;
+							current_method = DOPRI_8;
+							count_point = 22000;
+							changeAttractor(k);
+							drawVertices();
 						default:
                             break;
                     }
@@ -522,7 +598,30 @@ public:
 
 };
 
+double directedHausdorffDistance(vector<Vector>& A, vector<Vector>& B){
+	double max_distance = 0;
+	for (auto& a: A){
+		double min_distance = numeric_limits<double>::max();
+		for(auto& b: B){
+			double current_distance = euclideanDistance(a, b);
+			min_distance = min(min_distance, current_distance);
+		} 
+		max_distance = max(max_distance, min_distance);
+	}
+	return max_distance;
+}
+
+double HausdorffDistance(std::vector<Vector>& standart, vector<Vector>& new_way){
+	double h_A_B = directedHausdorffDistance(standart, new_way);
+	double h_B_A = directedHausdorffDistance(new_way, standart);
+
+	return max(h_A_B, h_B_A);
+}
+
+
+
 int main(){
-	Attractor atr (3000000, 0.18, -0.8);
+	float h = -0.78;
+	Attractor atr (3000000, 0.18, h);
 	atr.drawAttractor();
 }
