@@ -78,6 +78,8 @@ t - use Trapezoid method
 
 p - use PredictCorrector 
 
+d - use DOPRI8 method
+
 
 '>' - increase h
 
